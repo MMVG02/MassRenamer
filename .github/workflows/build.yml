@@ -31,10 +31,10 @@ jobs:
     - name: Build executable with PyInstaller
       # --- Choose ONE of the following 'run:' lines ---
       # Option A: If you DO have an icon file at assets/icon.ico
-      # run: pyinstaller --name MassRenamer --onefile --windowed --icon=assets/icon.ico main.py
+      run: pyinstaller --name MassRenamer --onefile --windowed --icon=assets/icon.ico main.py
 
       # Option B: If you DO NOT have an icon file (Remove or comment out Option A if using this)
-      run: pyinstaller --name MassRenamer --onefile --windowed main.py
+      #run: pyinstaller --name MassRenamer --onefile --windowed main.py
       # --- End of choice ---
 
     - name: Upload artifact
