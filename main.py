@@ -4,6 +4,7 @@ import tkinter.messagebox as mb
 import customtkinter as ctk
 import pandas as pd
 import os
+import re # Import regular expressions for natural sorting
 
 # --- Constants ---
 APP_NAME = "Mass Renamer"
@@ -14,6 +15,18 @@ COLOR_BTN_XLSX = "#2ECC71" # Green
 COLOR_BTN_FOLDER = "#3498DB" # Blue
 COLOR_BTN_START = "#E74C3C" # Red
 COLOR_BTN_HOVER = "#555555" # Dark Gray for hover
+
+# --- Helper Function for Natural Sorting ---
+def natural_sort_key(s):
+    """
+    Generate a key for sorting strings in natural order (alphanumeric).
+    Example: ["item1", "item10", "item2"] -> ["item1", "item2", "item10"]
+    """
+    # Split the string into alternating non-digit and digit sequences.
+    # Convert digit sequences to integers for proper numerical comparison.
+    # Keep non-digit sequences as lowercase strings for case-insensitive text comparison.
+    return [int(text) if text.isdigit() else text.lower()
+            for text in re.split('(\d+)', str(s))] # Ensure input is string
 
 # --- Main Application Class ---
 class MassRenamerApp(ctk.CTk):
@@ -105,12 +118,11 @@ class MassRenamerApp(ctk.CTk):
         )
         if file_path:
             self.xlsx_path = file_path
-            # Display only filename, shorten if too long
             filename = os.path.basename(file_path)
             max_len = 35
             display_name = (filename[:max_len] + '...') if len(filename) > max_len else filename
             self.xlsx_label.configure(text=display_name, text_color="black")
-            self.status_label.configure(text="") # Clear status on new selection
+            self.status_label.configure(text="")
         else:
             self.xlsx_path = None
             self.xlsx_label.configure(text="No file selected", text_color="gray")
@@ -120,11 +132,10 @@ class MassRenamerApp(ctk.CTk):
         folder_path = fd.askdirectory(title="Select Folder Containing Files to Rename")
         if folder_path:
             self.folder_path = folder_path
-             # Display path, shorten if too long
             max_len = 35
             display_name = (folder_path[:max_len] + '...') if len(folder_path) > max_len else folder_path
             self.folder_label.configure(text=display_name, text_color="black")
-            self.status_label.configure(text="") # Clear status on new selection
+            self.status_label.configure(text="")
         else:
             self.folder_path = None
             self.folder_label.configure(text="No folder selected", text_color="gray")
@@ -132,7 +143,7 @@ class MassRenamerApp(ctk.CTk):
     def start_renaming(self):
         """Performs the file renaming process."""
         self.status_label.configure(text="Processing...", text_color="orange")
-        self.update_idletasks() # Refresh UI to show status
+        self.update_idletasks()
 
         if not self.xlsx_path or not self.folder_path:
             mb.showerror("Error", "Please select both an XLSX file and a Folder first.")
@@ -145,12 +156,13 @@ class MassRenamerApp(ctk.CTk):
         try:
             # 1. Read XLSX file
             try:
-                df = pd.read_excel(self.xlsx_path, header=None) # Assume no header
+                df = pd.read_excel(self.xlsx_path, header=None)
                 if df.empty or df.shape[1] == 0:
                      mb.showerror("Error", "The selected XLSX file is empty or has no columns.")
                      self.status_label.configure(text="Error: XLSX empty.", text_color="red")
                      return
-                new_names = df.iloc[:, 0].astype(str).tolist() # Get names from the first column
+                # Ensure names are read as strings to prevent pandas from inferring types
+                new_names = df.iloc[:, 0].astype(str).tolist()
             except FileNotFoundError:
                  mb.showerror("Error", f"XLSX file not found:\n{self.xlsx_path}")
                  self.status_label.configure(text="Error: XLSX not found.", text_color="red")
@@ -160,12 +172,14 @@ class MassRenamerApp(ctk.CTk):
                  self.status_label.configure(text="Error: Cannot read XLSX.", text_color="red")
                  return
 
-            # 2. List and sort files in the folder
+            # 2. List files in the folder
             try:
                 all_entries = os.listdir(self.folder_path)
-                # Filter out directories, keep only files
                 old_files = [f for f in all_entries if os.path.isfile(os.path.join(self.folder_path, f))]
-                old_files.sort() # Sort alphabetically/numerically
+                # --- THIS IS THE KEY CHANGE ---
+                # Sort files using the natural sort key
+                old_files.sort(key=natural_sort_key)
+                # --- END OF KEY CHANGE ---
             except FileNotFoundError:
                  mb.showerror("Error", f"Folder not found:\n{self.folder_path}")
                  self.status_label.configure(text="Error: Folder not found.", text_color="red")
@@ -179,7 +193,6 @@ class MassRenamerApp(ctk.CTk):
             if len(old_files) != len(new_names):
                 warning_message = "Warning: The number of files and names are not the same.\n"
                 mb.showwarning("Warning", warning_message + "Only matching pairs will be renamed.")
-                # Don't return, proceed with renaming the minimum number
 
             # 4. Determine how many files to rename
             num_to_rename = min(len(old_files), len(new_names))
@@ -193,21 +206,26 @@ class MassRenamerApp(ctk.CTk):
             errors_during_rename = 0
             for i in range(num_to_rename):
                 old_name = old_files[i]
-                new_name = new_names[i]
+                new_name = new_names[i].strip() # Remove leading/trailing whitespace from Excel name
 
-                # Basic validation for the new name (optional but good)
-                if not new_name or "/" in new_name or "\\" in new_name:
-                    print(f"Skipping invalid new name: '{new_name}'") # Log to console
+                # Basic validation for the new name
+                if not new_name:
+                    print(f"Skipping empty new name from Excel row {i+1}") # Log to console
                     errors_during_rename += 1
-                    continue # Skip this one
+                    continue
+                # Check for invalid characters (you might want to expand this list)
+                # Common invalid chars in Windows filenames: <>:"/\|?*
+                if any(char in new_name for char in '<>:"/\\|?*'):
+                     print(f"Skipping invalid new name '{new_name}' (contains forbidden characters) from Excel row {i+1}")
+                     errors_during_rename += 1
+                     continue
 
                 old_path = os.path.join(self.folder_path, old_name)
                 new_path = os.path.join(self.folder_path, new_name)
 
-                # Skip if old and new names are the same
-                if old_path == new_path:
-                    # This counts as "renamed" in the sense that the desired state is achieved
-                    renamed_count += 1
+                # Skip if old and new names are the same after potential path normalization
+                if os.path.normpath(old_path) == os.path.normpath(new_path):
+                    renamed_count += 1 # Count it as "done"
                     continue
 
                 # Prevent overwriting existing files UNLESS it's the source file itself
@@ -217,12 +235,12 @@ class MassRenamerApp(ctk.CTk):
                      continue
 
                 try:
+                    print(f"Renaming: '{old_name}' -> '{new_name}'") # Optional: Log rename action
                     os.rename(old_path, new_path)
                     renamed_count += 1
                 except OSError as e:
                     errors_during_rename += 1
                     print(f"Error renaming '{old_name}' to '{new_name}': {e}") # Log error
-                    # Consider showing a message box for the first error?
                     if errors_during_rename == 1: # Show only the first error to avoid spamming
                          mb.showerror("Renaming Error", f"Could not rename '{old_name}' to '{new_name}'.\nError: {e}\n\nCheck file permissions or if the file is open.")
 
@@ -240,10 +258,9 @@ class MassRenamerApp(ctk.CTk):
             self.status_label.configure(text=success_message, text_color="green")
 
         except Exception as e:
-            # Catch any unexpected errors during the process
             mb.showerror("Unexpected Error", f"An unexpected error occurred: {e}")
             self.status_label.configure(text="Unexpected Error.", text_color="red")
-            print(f"Unexpected Error: {e}") # Log details
+            print(f"Unexpected Error: {e}")
 
 # --- Run the Application ---
 if __name__ == "__main__":
