@@ -4,7 +4,7 @@ import tkinter.messagebox as mb
 import customtkinter as ctk
 import pandas as pd
 import os
-import re # Import regular expressions for natural sorting
+import re # Import regular expressions for natural sorting.
 
 # --- Constants ---
 APP_NAME = "Mass Renamer"
