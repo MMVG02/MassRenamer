@@ -1,0 +1,44 @@
+name: Build Windows Executable
+
+on:
+  push:
+    branches: [ "main", "master" ] # Or your default branch
+    paths:
+      - 'main.py' # Trigger only if python code changes
+      - 'requirements.txt'
+      - '.github/workflows/build.yml'
+  workflow_dispatch: # Allows manual triggering from GitHub Actions UI
+
+jobs:
+  build-windows:
+    runs-on: windows-latest # Use the latest Windows runner
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4 # Use latest checkout action
+
+    - name: Set up Python
+      uses: actions/setup-python@v5 # Use latest python setup action
+      with:
+        python-version: '3.10' # Choose a suitable Python version
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller # Install PyInstaller for building
+
+    - name: Build executable with PyInstaller
+      run: |
+        pyinstaller --name MassRenamer ^
+                    --onefile ^
+                    --windowed ^
+                    --icon=assets/icon.ico ^ # OPTIONAL: Add an icon file (see note below)
+                    main.py
+        # The '^' is the line continuation character for Windows batch commands
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4 # Use latest upload artifact action
+      with:
+        name: MassRenamer-Windows # Name of the artifact zip file
+        path: dist/MassRenamer.exe # Path to the generated executable
