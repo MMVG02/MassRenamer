@@ -4,7 +4,8 @@ import tkinter.messagebox as mb
 import customtkinter as ctk
 import pandas as pd
 import os
-import re # Import regular expressions for natural sorting.
+import re
+import sys # Import sys to help with finding assets
 
 # --- Constants ---
 APP_NAME = "Mass Renamer"
@@ -16,17 +17,22 @@ COLOR_BTN_FOLDER = "#3498DB" # Blue
 COLOR_BTN_START = "#E74C3C" # Red
 COLOR_BTN_HOVER = "#555555" # Dark Gray for hover
 
+# --- Helper Function for Asset Path ---
+def resource_path(relative_path):
+    """ Get absolute path to resource, works for dev and for PyInstaller """
+    try:
+        # PyInstaller creates a temp folder and stores path in _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".") # Use current directory for development
+
+    return os.path.join(base_path, relative_path)
+
 # --- Helper Function for Natural Sorting ---
+# (Keep your existing natural_sort_key function here)
 def natural_sort_key(s):
-    """
-    Generate a key for sorting strings in natural order (alphanumeric).
-    Example: ["item1", "item10", "item2"] -> ["item1", "item2", "item10"]
-    """
-    # Split the string into alternating non-digit and digit sequences.
-    # Convert digit sequences to integers for proper numerical comparison.
-    # Keep non-digit sequences as lowercase strings for case-insensitive text comparison.
     return [int(text) if text.isdigit() else text.lower()
-            for text in re.split('(\d+)', str(s))] # Ensure input is string
+            for text in re.split('(\d+)', str(s))]
 
 # --- Main Application Class ---
 class MassRenamerApp(ctk.CTk):
@@ -39,10 +45,25 @@ class MassRenamerApp(ctk.CTk):
         # --- Window Setup ---
         self.title(APP_NAME)
         self.geometry(f"{WINDOW_WIDTH}x{WINDOW_HEIGHT}")
-        ctk.set_appearance_mode("Light") # Force Light Mode for white UI
-        ctk.set_default_color_theme("blue") # Default theme
 
-        # Center the window on launch
+        # --- ADD ICON HERE ---
+        try:
+            # Construct the path to the icon relative to the script/executable
+            icon_path = resource_path("assets/icon.ico")
+            if os.path.exists(icon_path):
+                 # The 'iconbitmap' method sets the window icon
+                 self.iconbitmap(icon_path)
+            else:
+                 print("Warning: Icon file not found at:", icon_path) # Log warning if icon missing
+        except tk.TclError as e:
+             print(f"Warning: Could not set icon (OS might not support it or invalid format): {e}")
+        except Exception as e:
+             print(f"Warning: An error occurred setting the icon: {e}")
+        # --- END OF ICON CODE ---
+
+
+        ctk.set_appearance_mode("Light")
+        ctk.set_default_color_theme("blue")
         self.center_window()
 
         # --- UI Elements ---
